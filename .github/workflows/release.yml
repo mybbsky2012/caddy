@@ -11,22 +11,30 @@ jobs:
     strategy:
       matrix:
         os: [ ubuntu-latest ]
-        go: [ '1.17' ]
+        go: [ '1.18' ]
+
+        include:
+        # Set the minimum Go patch version for the given Go minor
+        # Usable via ${{ matrix.GO_SEMVER }}
+        - go: '1.18'
+          GO_SEMVER: '~1.18.1'
+
     runs-on: ${{ matrix.os }}
 
     steps:
     - name: Install Go
-      uses: actions/setup-go@v2
+      uses: actions/setup-go@v3
       with:
-        go-version: ${{ matrix.go }}
+        go-version: ${{ matrix.GO_SEMVER }}
+        check-latest: true
 
     - name: Checkout code
-      uses: actions/checkout@v2
+      uses: actions/checkout@v3
       with:
         fetch-depth: 0
 
     # Force fetch upstream tags -- because 65 minutes
-    # tl;dr: actions/checkout@v2 runs this line:
+    # tl;dr: actions/checkout@v3 runs this line:
     #   git -c protocol.version=2 fetch --no-tags --prune --progress --no-recurse-submodules --depth=1 origin +ebc278ec98bb24f2852b61fde2a9bf2e3d83818b:refs/tags/
     # which makes its own local lightweight tag, losing all the annotations in the process. Our earlier script ran:
     #   git fetch --prune --unshallow
@@ -48,7 +56,6 @@ jobs:
         env
         echo "::set-output name=version_tag::${GITHUB_REF/refs\/tags\//}"
         echo "::set-output name=short_sha::$(git rev-parse --short HEAD)"
-        echo "::set-output name=go_cache::$(go env GOCACHE)"
 
         # Add "pip install" CLI tools to PATH
         echo ~/.local/bin >> $GITHUB_PATH
@@ -83,7 +90,12 @@ jobs:
     - name: Cache the build cache
       uses: actions/cache@v2
       with:
-        path: ${{ steps.vars.outputs.go_cache }}
+        # In order:
+        # * Module download cache
+        # * Build cache (Linux)
+        path: |
+          ~/go/pkg/mod
+          ~/.cache/go-build
         key: ${{ runner.os }}-go${{ matrix.go }}-release-${{ hashFiles('**/go.sum') }}
         restore-keys: |
           ${{ runner.os }}-go${{ matrix.go }}-release
@@ -99,7 +111,7 @@ jobs:
         TAG: ${{ steps.vars.outputs.version_tag }}
 
     # Only publish on non-special tags (e.g. non-beta)
-    # We will continue to push to Gemfury for the forseeable future, although
+    # We will continue to push to Gemfury for the foreseeable future, although
     # Cloudsmith is probably better, to not break things for existing users of Gemfury.
     # See https://gemfury.com/caddy/deb:caddy
     - name: Publish .deb to Gemfury

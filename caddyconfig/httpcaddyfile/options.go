@@ -29,7 +29,7 @@ func init() {
 	RegisterGlobalOption("debug", parseOptTrue)
 	RegisterGlobalOption("http_port", parseOptHTTPPort)
 	RegisterGlobalOption("https_port", parseOptHTTPSPort)
-	RegisterGlobalOption("default_bind", parseOptSingleString)
+	RegisterGlobalOption("default_bind", parseOptStringList)
 	RegisterGlobalOption("grace_period", parseOptDuration)
 	RegisterGlobalOption("default_sni", parseOptSingleString)
 	RegisterGlobalOption("order", parseOptOrder)
@@ -279,6 +279,15 @@ func parseOptSingleString(d *caddyfile.Dispenser, _ interface{}) (interface{}, e
 	return val, nil
 }
 
+func parseOptStringList(d *caddyfile.Dispenser, _ interface{}) (interface{}, error) {
+	d.Next() // consume parameter name
+	val := d.RemainingArgs()
+	if len(val) == 0 {
+		return "", d.ArgErr()
+	}
+	return val, nil
+}
+
 func parseOptAdmin(d *caddyfile.Dispenser, _ interface{}) (interface{}, error) {
 	adminCfg := new(caddy.AdminConfig)
 	for d.Next() {
@@ -384,8 +393,8 @@ func parseOptAutoHTTPS(d *caddyfile.Dispenser, _ interface{}) (interface{}, erro
 	if d.Next() {
 		return "", d.ArgErr()
 	}
-	if val != "off" && val != "disable_redirects" && val != "ignore_loaded_certs" {
-		return "", d.Errf("auto_https must be one of 'off', 'disable_redirects' or 'ignore_loaded_certs'")
+	if val != "off" && val != "disable_redirects" && val != "disable_certs" && val != "ignore_loaded_certs" {
+		return "", d.Errf("auto_https must be one of 'off', 'disable_redirects', 'disable_certs', or 'ignore_loaded_certs'")
 	}
 	return val, nil
 }

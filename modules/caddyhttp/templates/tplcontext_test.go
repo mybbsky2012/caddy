@@ -606,8 +606,60 @@ title = "Welcome"
 
 }
 
+func TestHumanize(t *testing.T) {
+	tplContext := getContextOrFail(t)
+	for i, test := range []struct {
+		format    string
+		inputData string
+		expect    string
+		errorCase bool
+		verifyErr func(actual_string, substring string) bool
+	}{
+		{
+			format:    "size",
+			inputData: "2048000",
+			expect:    "2.0 MB",
+			errorCase: false,
+			verifyErr: strings.Contains,
+		},
+		{
+			format:    "time",
+			inputData: "Fri, 05 May 2022 15:04:05 +0200",
+			expect:    "ago",
+			errorCase: false,
+			verifyErr: strings.HasSuffix,
+		},
+		{
+			format:    "time:2006-Jan-02",
+			inputData: "2022-May-05",
+			expect:    "ago",
+			errorCase: false,
+			verifyErr: strings.HasSuffix,
+		},
+		{
+			format:    "time",
+			inputData: "Fri, 05 May 2022 15:04:05 GMT+0200",
+			expect:    "error:",
+			errorCase: true,
+			verifyErr: strings.HasPrefix,
+		},
+	} {
+		if actual, err := tplContext.funcHumanize(test.format, test.inputData); !test.verifyErr(actual, test.expect) {
+			if !test.errorCase {
+				t.Errorf("Test %d: Expected '%s' but got '%s'", i, test.expect, actual)
+				if err != nil {
+					t.Errorf("Test %d: error: %s", i, err.Error())
+				}
+			}
+		}
+	}
+}
+
 func getContextOrFail(t *testing.T) TemplateContext {
 	tplContext, err := initTestContext()
+	t.Cleanup(func() {
+		os.RemoveAll(string(tplContext.Root.(http.Dir)))
+	})
 	if err != nil {
 		t.Fatalf("failed to prepare test context: %v", err)
 	}
@@ -620,8 +672,12 @@ func initTestContext() (TemplateContext, error) {
 	if err != nil {
 		return TemplateContext{}, err
 	}
+	tmpDir, err := os.MkdirTemp(os.TempDir(), "caddy")
+	if err != nil {
+		return TemplateContext{}, err
+	}
 	return TemplateContext{
-		Root:       http.Dir(os.TempDir()),
+		Root:       http.Dir(tmpDir),
 		Req:        request,
 		RespHeader: WrappedHeader{make(http.Header)},
 	}, nil
